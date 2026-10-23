@@ -62,14 +62,20 @@ scripts/cover.mjs         cover.png generator
   loses a feature.
 - Manifest keys (`host`, `device_id`, `allow_commands`, `poll_interval`,
   `language`, the actions `test_connection` and `accept_unit`) are frozen.
-- **Identity**: the serial (Device object description) is learnt once, kept
-  in /data; another serial is never applied nor commanded until
-  `accept_unit` is pressed twice (exactly the serial shown); an unreadable
-  serial is never "another unit" but refuses the commands when one is known.
+- **Identity**: the serial (Device object description, asked by the wildcard
+  instance 4194303 and the configured id) is learnt once, kept in /data;
+  another serial is never applied nor commanded (not even heater/hood off,
+  fireplace stop) until `accept_unit` is pressed twice (exactly the serial
+  shown); an unreadable serial is never "another unit" but refuses the
+  commands; no serial ever learnt refuses the commands too (status says so).
+  Only `electric-heater-off`, `cooker-hood-off`, `fireplace-stop` go without
+  a known serial.
 - **Commands**: never a switch, a writable binary or a thermostat; refused
   unless `allow_commands` (checked on arrival and in `beforeSend`), except
   `electric-heater-off`, `cooker-hood-off`, `fireplace-stop`; decided on a
-  fresh read (state + identity); a stopped unit is never restarted; toggles
+  fresh read (state + identity); a stopped unit is never restarted (comfort
+  off included: it overrides Stop); the ventilation mode needs the comfort
+  button on; toggles
   (fireplace, rapid ventilation triggers) never sent twice blind; written
   within 3.5 s; confirmed only by a read back equal to the value asked; a
   written command is never "not sent"; never retried; the ack never waits

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSocket } from 'node:dgram';
 import { POINTS, TRIGGERS } from '../src/constants.js';
-import { ERROR_KINDS, request } from '../src/bacnet/client.js';
+import { ERROR_KINDS, errorReason, request } from '../src/bacnet/client.js';
 import {
   BacnetError,
   answerInvokeId,
@@ -27,13 +27,13 @@ const wrap = (apdu) => {
 
 test('ReadPropertyMultiple: the bytes of flexit_bacnet', () => {
   const frame = readPropertyMultiple(7, [pointSpec('outdoor'), deviceSpec(2)]);
-  // BVLC, NPDU, confirmed request (segmented accepted, 4 x 1024), invoke 7, service 14,
-  // AI 1 [present value], Device 2 [object name, description].
+  // BVLC, NPDU, confirmed request (segmented answer NOT accepted, 1024), invoke 7,
+  // service 14, AI 1 [present value], Device 2 [object name, description].
   assert.equal(
     hex(frame),
     '810a001e' +
       '0104' +
-      '0244070e' +
+      '0004070e' +
       '0c00000001' +
       '1e0955' +
       '1f' +
@@ -45,16 +45,25 @@ test('ReadPropertyMultiple: the bytes of flexit_bacnet', () => {
 test('WriteProperty: real, enumerated with priority, unsigned', () => {
   assert.equal(
     hex(writeProperty(1, POINTS.setpointHome, 21.5)),
-    '810a0018' + '0104' + '0244010f' + '0c008007ca' + '1955' + '3e' + '4441ac0000' + '3f',
+    '810a0018' + '0104' + '0004010f' + '0c008007ca' + '1955' + '3e' + '4441ac0000' + '3f',
   );
   assert.equal(
     hex(writeProperty(2, POINTS.cookerHood, 0)),
-    '810a0017' + '0104' + '0244020f' + '0c01400192' + '1955' + '3e' + '9100' + '3f' + '490d',
+    '810a0017' + '0104' + '0004020f' + '0c01400192' + '1955' + '3e' + '9100' + '3f' + '490d',
   );
   assert.equal(
     hex(writeProperty(3, TRIGGERS.fireplace, 2)),
-    '810a0015' + '0104' + '0244030f' + '0c04c00168' + '1955' + '3e' + '2102' + '3f',
+    '810a0015' + '0104' + '0004030f' + '0c04c00168' + '1955' + '3e' + '2102' + '3f',
   );
+  // UNSIGNED in 1 to 4 bytes; anything else is refused before a byte is built.
+  const unsigned = (value) => hex(writeProperty(4, TRIGGERS.fireplace, value)).slice(36, -2);
+  assert.equal(unsigned(300), '22012c');
+  assert.equal(unsigned(0x12345), '23012345');
+  assert.equal(unsigned(0xffffffff), '24ffffffff');
+  for (const bad of [-1, 1.5, 2 ** 32, NaN]) {
+    assert.throws(() => writeProperty(4, TRIGGERS.fireplace, bad), RangeError, String(bad));
+  }
+  assert.throws(() => writeProperty(4, POINTS.heater, 2), RangeError);
 });
 
 test('a read answer: values, access errors unknown, identity', () => {
@@ -187,7 +196,19 @@ test('implausible values are unknown, never 0', () => {
 test('the configuration: IPv4 only, a device id in range', () => {
   assert.deepEqual(parseAddress('192.168.1.80'), { host: '192.168.1.80', port: 47808 });
   assert.deepEqual(parseAddress('10.0.0.2:47809'), { host: '10.0.0.2', port: 47809 });
-  for (const bad of ['flexit.local', '300.1.1.1', '1.2.3.4:0', '1.2.3.4:99999', '::1', '']) {
+  for (const bad of [
+    'flexit.local',
+    '300.1.1.1',
+    '1.2.3.4:0',
+    '1.2.3.4:99999',
+    '::1',
+    '',
+    '0.0.0.0',
+    '255.255.255.255',
+    '224.0.0.1',
+    '239.255.255.250',
+    '240.0.0.1',
+  ]) {
     assert.equal(parseAddress(bad), undefined, bad);
   }
   assert.equal(normalizeConfig({ host: '1.2.3.4' }).deviceId, 2);
@@ -244,6 +265,20 @@ test('UDP: a real loopback socket, the answer of the right source only', async (
         startBy: Date.now() - 1,
       }),
       (err) => err.kind === ERROR_KINDS.LATE && err.sent === false,
+    );
+    // A segmented answer: refused, and the reason says so (status, logs).
+    server.on('message', (message, rinfo) => {
+      server.send(wrap([0x38, message[8], 0, 1, 0x0e]), rinfo.port, rinfo.address);
+    });
+    await assert.rejects(
+      request({
+        host: '127.0.0.1',
+        port,
+        build: (id) => readPropertyMultiple(id, [pointSpec('outdoor')]),
+        parse: parseReadAnswer,
+        timeoutMs: 1000,
+      }),
+      (err) => err.kind === ERROR_KINDS.PROTOCOL && /segmented/.test(errorReason(err)),
     );
   } finally {
     server.close();

@@ -97,6 +97,8 @@ export function fakeFlexit({ deviceId = 2, serial = SERIAL, delay = 30 } = {}) {
     serial,
     name: 'HvacFnct21y_A',
     deviceId,
+    /** Whether the unit answers the wildcard Device instance 4194303. */
+    wildcard: true,
     delay,
     /** Every request: { op: 'read', objects } | { op: 'write', key, value, priority }. */
     log: [],
@@ -130,7 +132,9 @@ export function fakeFlexit({ deviceId = 2, serial = SERIAL, delay = 30 } = {}) {
       if (body[i] !== 0x0c) throw new Error('fake: bad object id');
       const raw = body.readUInt32BE(i + 1);
       const type = raw >>> 22;
-      const instance = raw & 0x3fffff;
+      const asked = raw & 0x3fffff;
+      // The wildcard Device instance answers with the unit's own Device object (unless disabled).
+      const instance = type === DEV && asked === 4194303 && unit.wildcard ? unit.deviceId : asked;
       i += 5;
       if (body[i] !== 0x1e) throw new Error('fake: no list');
       i += 1;
@@ -217,7 +221,8 @@ export function fakeFlexit({ deviceId = 2, serial = SERIAL, delay = 30 } = {}) {
     if (request.readUInt16BE(2) !== request.length) throw new Error('fake: bad length');
     if (request[4] !== 0x01 || request[5] !== 0x04) throw new Error('fake: bad NPDU');
     const apdu = request.subarray(6);
-    if (apdu[0] !== 0x02 || apdu[1] !== 0x44) throw new Error('fake: bad APDU header');
+    // Segmented answer not accepted, 1024-byte APDU.
+    if (apdu[0] !== 0x00 || apdu[1] !== 0x04) throw new Error('fake: bad APDU header');
     const invokeId = apdu[2];
     const body = apdu.subarray(4);
     if (apdu[3] === 14) return readAnswer(invokeId, body);

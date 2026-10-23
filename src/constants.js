@@ -15,6 +15,8 @@ export const DEFAULT_PORT = 47808;
 /** The BACnet device instance of a Flexit Nordic unit unless changed (Home Assistant's default). */
 export const DEFAULT_DEVICE_ID = 2;
 export const MAX_DEVICE_ID = 4_194_302;
+/** The wildcard Device instance (ASHRAE 135): a unit answers it with its own Device object. */
+export const WILDCARD_DEVICE_ID = 4_194_303;
 
 /** BACnet object types (ASHRAE 135). */
 export const OBJECT_TYPES = {
@@ -255,6 +257,8 @@ export const COMMANDS = {
     point: 'ventilationMode',
     values: WRITABLE_MODES,
     mayStart: true,
+    // The ventilation mode only applies while the comfort button is on (flexit_bacnet).
+    needsComfort: true,
   },
   [FEATURES.SETPOINT_HOME]: {
     point: 'setpointHome',
@@ -289,7 +293,8 @@ export const COMMANDS = {
     target: 'heater',
   },
   [FEATURES.COMFORT_ON]: { point: 'comfort', value: 1, expected: true, mayStart: true },
-  [FEATURES.COMFORT_OFF]: { point: 'comfort', value: 0, expected: false },
+  // Comfort off overrides the ventilation mode (Stop included): the unit goes Away after its delay.
+  [FEATURES.COMFORT_OFF]: { point: 'comfort', value: 0, expected: false, mayStart: true },
   [FEATURES.FILTER_RESET]: {
     trigger: 'filterReset',
     confirmWith: 'filterHours',

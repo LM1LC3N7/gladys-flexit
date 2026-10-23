@@ -25,22 +25,33 @@ up to date at the end of every milestone.
       en/fr, cover. Tested against a fake unit and a loopback UDP socket
       only. The store validator was not run by the dev session (it needs the
       real terminal).
+- [x] **Review 1 fixes** (2026-10-23): comfort off refused on a stopped unit
+      (B1); commands refused until a serial is learnt, Device object also
+      read by the wildcard instance 4194303, status says so (I2); "always
+      allowed" commands refused toward another identified unit; ventilation
+      mode refused while the comfort button is off; segmented answer no longer
+      announced as accepted, its reason kept; UNSIGNED of 1-4 bytes; 0.x,
+      multicast and broadcast addresses refused; docs fr/en corrected.
 - [ ] **Milestone 2 — real unit**: run against a real Flexit Nordic (see "To check").
 - [ ] **Milestone 3 — more**: fan setpoints per mode, durations of the
       fireplace and rapid modes (selects), heater nominal power, if asked.
 
 ## To check on a real unit
 
-- That the answers are never segmented with these three groups (a segmented
-  answer is refused) and that the unit accepts a fresh invoke id per request.
+- That the answers are never segmented with these three groups (segmentation
+  is announced as not accepted; a segmented answer is refused) and that the
+  unit accepts a fresh invoke id per request.
+- That the unit answers the wildcard Device instance 4194303 (standard
+  BACnet) with its own Device object, or at least an access error for it
+  (not an Error for the whole request).
 - That the description of the Device object is the serial (`800xxx-xxxxxx`)
   and stays the same across restarts and firmware updates.
 - Whether the fireplace trigger is a toggle (Home Assistant says so) and
   whether the rapid ventilation trigger is one too (treated as one here); what
   the operation mode reads during each (6, 7).
-- Whether a written ventilation mode shows at once in MSV 42 when the comfort
-  button is off (flexit_bacnet: it reads Away then), else every mode command
-  ends "sent, without confirmation".
+- That a written ventilation mode shows at once in MSV 42 (with the comfort
+  button on; with it off, the mode command is refused, as flexit_bacnet says
+  the register then stays Away).
 - What the room humidity objects (AV 2093-2095) read without a CI77 sensor
   (0 is taken as absent) and AI 96 on models without an extract sensor.
 - Whether the filter reset shows at once on AV 285 (the confirmation).
@@ -70,13 +81,16 @@ up to date at the end of every milestone.
 - **Identity (FROZEN RULE)**: device `flexit:unit`, one per integration,
   never the IP address nor the serial (a replaced unit keeps the device and
   its history once accepted). The serial (Device object description) is
-  learnt at the first read and kept in /data; a read showing another serial
-  is not applied (status, badge unreachable, commands refused except the
-  protective ones); "Accept the unit at this address" pressed twice within 2
-  minutes pins exactly the serial shown, without a read. An unreadable serial
-  is never "another unit": the read is applied, but the commands (except the
-  protective ones) are refused while a serial is known. A unit that never
-  gave a serial is driven without the check (documented in this file).
+  learnt at the first read and kept in /data. The Device object is asked by
+  the wildcard instance 4194303 and by the configured device id (two serials
+  in one answer: unknown), so a wrong device id still gives the identity. A
+  read showing another serial is not applied (status, badge unreachable,
+  every command refused, the "always allowed" ones included); "Accept the
+  unit at this address" pressed twice within 2 minutes pins exactly the
+  serial shown, without a read. An unreadable serial is never "another
+  unit": the read is applied, but the commands (except the "always allowed"
+  ones) are refused. No serial ever learnt: the status says "check the BACnet
+  device id" and the commands (except the "always allowed" ones) are refused.
 - **Reads**: three ReadPropertyMultiple (state + identity, measures, slower
   values) of at most 17 objects, answers far under one frame; the first
   failing fails the read; another one failing leaves its values unknown this
@@ -94,17 +108,27 @@ up to date at the end of every milestone.
   from the lists; buttons strictly 1.
 - **Stopped unit**: when the operation mode reads off or the ventilation mode
   reads stop, the commands that may start the fans or the heater (mode,
-  rapid, fireplace start, cooker hood on, heater on, comfort on) are refused;
+  rapid, fireplace start, cooker hood on, heater on, comfort on, and comfort
+  off, which overrides Stop and sends the unit Away) are refused. The
+  ventilation mode is refused while the comfort button reads off (it would
+  stay Away);
   stopping the ventilation is not offered in v1 (if ever: its own option,
   off by default, a list value).
-- **Protective commands**: heater off, cooker hood off (one absolute write,
-  no fresh read, confirmed by the read back) and fireplace stop (a toggle:
-  written only when a fresh read shows the mode on, never blind). Never held
-  back by the option, another command, the identity, a failed read or a
-  backoff; possible before the first read after a restart; a second press
-  joins the first. Each one bumps a counter checked in the `beforeSend` of
-  the other commands: a command not written yet gives way ("a protective
-  command was sent meanwhile"). Not confirmed: a stop guard per target (2
+- **"Always allowed" commands** (called protective in the code): heater off
+  (removes a heat source), cooker hood off and fireplace stop (they bring the
+  ventilation back to normal; not a safety action: they remove the air
+  compensation of a hood or a stove; the fireplace mode is an overpressure,
+  supply 90 % / extract 50 % by default, the lot proposal's "dépression" is
+  wrong). Heater off and cooker hood off: one absolute write, always, no
+  fresh read, confirmed by the read back. Fireplace stop: a toggle, written
+  only when a fresh read shows the mode on, never blind (a failed read
+  refuses it, the stop guard sends it at the next reads). Never held back by
+  the option, another command or a backoff; refused only toward another unit
+  identified at the address; possible before the first read after a restart
+  and with an unreadable serial; a second press joins the first. Each one
+  bumps a counter checked in the `beforeSend` of the other commands: a
+  command not written yet gives way ("a priority command was sent
+  meanwhile"). Not confirmed: a stop guard per target (2
   minutes) resends it, twice at most, a second after a read that shows the
   target still on, unless an "on" command of that target actually left after
   it (number set in `beforeSend`; a write refused by the unit does not count).
@@ -131,8 +155,16 @@ up to date at the end of every milestone.
 - **Operation mode** published as stable English keys (`home`, `fireplace`…)
   on a read-only text feature, whatever the language (scenes keep working).
 - **Fireplace mode**: Flexit's fireplace function raises the supply over the
-  extract (overpressure, to help a stove draw); the lot proposal wrote
-  "dépression": to check with Flexit's documentation on a real unit.
+  extract (overpressure, to help a stove draw), confirmed by review 1
+  (flexit_bacnet's FIRE setpoints 90 % / 50 %); the lot proposal's
+  "dépression" is wrong.
+- **Addresses**: IPv4 unicast only: 0.x, multicast (224-239) and
+  reserved/broadcast (240-255) refused as invalid.
+- **Frames**: segmentation announced as not accepted (byte 0x00), unlike
+  flexit_bacnet: a unit that would need it answers an Abort; the reason of a
+  protocol error ("segmented answer"…) is kept in the status and the logs.
+  An UNSIGNED write takes 1 to 4 bytes; anything else is refused before a
+  byte is built.
 - **Interval**: 60 s by default, 30 s – 1 h.
 - **Not done**: Bluetooth (none), scenes, widgets, fan setpoints per mode,
   durations, heater nominal power, ventilation stop.

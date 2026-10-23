@@ -19,12 +19,14 @@ the notes of the version's GitHub Release.
 - Read every interval (60 s by default), never sooner, even after a restart.
 - The serial number of the unit is kept and checked: another unit at the
   address is never shown nor driven until "Accept the unit at this address"
-  is pressed twice.
-- Commands behind "Allow the commands" (off by default): ventilation mode,
-  air temperature setpoints (10 to 30 °C), rapid ventilation and fireplace
-  mode start, cooker hood and electric heater on, comfort button, filter timer
-  reset. Selects and buttons only.
-- Always allowed: electric heater off, cooker hood off, fireplace mode stop.
+  is pressed twice; the commands wait until the serial number has been read.
+- Commands behind "Allow the commands" (off by default): ventilation mode
+  (with the comfort button on), air temperature setpoints (10 to 30 °C), rapid
+  ventilation and fireplace mode start, cooker hood and electric heater on,
+  comfort button, filter timer reset. Selects and buttons only. A stopped
+  unit is never restarted.
+- Always allowed (except toward another unit identified at the address):
+  electric heater off, cooker hood off, fireplace mode stop.
 - Guides in English and French, cover image.
 
 [Unreleased]: https://github.com/LM1LC3N7/gladys-flexit/commits/main

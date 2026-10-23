@@ -31,6 +31,11 @@ export function parseAddress(raw) {
   if (!match || isIP(match[1]) !== 4) {
     return undefined;
   }
+  // One unit: never "this network" (0.x), a multicast (224-239) or reserved/broadcast (240-255) address.
+  const first = Number(match[1].split('.')[0]);
+  if (first === 0 || first >= 224) {
+    return undefined;
+  }
   const port = match[2] === undefined ? DEFAULT_PORT : Number(match[2]);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     return undefined;

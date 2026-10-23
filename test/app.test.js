@@ -156,7 +156,15 @@ test('a stopped unit is never restarted; the heater off still goes', async (t) =
   unit.objects['19:42'] = 1;
   unit.objects['5:445'] = 1;
   const ctx = await setup(t, { config: ALLOW, unit });
-  for (const role of ['comfort-on', 'electric-heater-on', 'fireplace-start', 'cooker-hood-on']) {
+  // Comfort off overrides Stop: it would restart the unit (review 1, B1).
+  for (const role of [
+    'comfort-on',
+    'comfort-off',
+    'electric-heater-on',
+    'fireplace-start',
+    'cooker-hood-on',
+    'rapid-ventilation-start',
+  ]) {
     const ack = await ctx.press(role);
     assert.equal(ack.success, false, role);
     assert.match(String(ack.error), /arrêtée/);
@@ -258,7 +266,7 @@ test('a protective command makes a command not written yet give way', async (t) 
   await ctx.advance(5 * SECOND, 50);
   const [onAck, offAck] = await Promise.all([on, off]);
   assert.equal(onAck.success, false);
-  assert.match(String(onAck.error), /protection/);
+  assert.match(String(onAck.error), /prioritaire/);
   assert.equal(offAck.success, true, String(offAck.error));
   assert.deepEqual(ctx.unit.writes(), [{ op: 'write', key: '5:445', value: 0 }]);
 });
@@ -273,9 +281,13 @@ test('another unit at the address: nothing applied, commands refused, accepted t
   const ack = await ctx.press('comfort-off');
   assert.equal(ack.success, false);
   assert.match(String(ack.error), /autre centrale/);
-  // The protective commands still go (harmless on any unit).
-  assert.equal((await ctx.press('electric-heater-off')).success, true);
-  assert.deepEqual(unit.writes(), [{ op: 'write', key: '5:445', value: 0 }]);
+  // Not even a protective command toward a unit known to be another one.
+  for (const role of ['electric-heater-off', 'cooker-hood-off', 'fireplace-stop']) {
+    const refused = await ctx.press(role);
+    assert.equal(refused.success, false, role);
+    assert.match(String(refused.error), /autre centrale/);
+  }
+  assert.deepEqual(unit.writes(), []);
   const first = await ctx.app.acceptUnit();
   assert.match(first.fr, /800120-999999/);
   assert.equal(store.data.serial, SERIAL, 'one press changes nothing');
@@ -296,6 +308,39 @@ test('an unreadable serial is never "another unit"; commands then refused', asyn
   const ack = await ctx.press('comfort-off');
   assert.equal(ack.success, false);
   assert.match(String(ack.error), /numéro de série/);
+  assert.deepEqual(unit.writes(), []);
+});
+
+test('a wrong device id: the wildcard Device instance still gives the serial', async (t) => {
+  const unit = fakeFlexit({ deviceId: 7 });
+  const ctx = await setup(t, { config: ALLOW, unit });
+  assert.equal(ctx.store.data.serial, SERIAL);
+  const ack = await ctx.press('comfort-off');
+  assert.equal(ack.success, true, String(ack.error));
+});
+
+test('no serial ever learnt: the status says so, the commands are refused', async (t) => {
+  const unit = fakeFlexit({ deviceId: 7 });
+  unit.wildcard = false;
+  const ctx = await setup(t, { config: ALLOW, unit });
+  assert.equal(ctx.store.data.serial, null);
+  assert.match(String(ctx.gladys.fake.connectionStatus.message?.fr), /numéro d’appareil BACnet/);
+  const ack = await ctx.press('electric-heater-on');
+  assert.equal(ack.success, false);
+  assert.match(String(ack.error), /jamais pu être lu/);
+  assert.deepEqual(unit.writes(), []);
+  // A protective command still goes (no unit identified as another one).
+  assert.equal((await ctx.press('electric-heater-off')).success, true);
+});
+
+test('the ventilation mode with the comfort button off: refused with the reason', async (t) => {
+  const unit = fakeFlexit();
+  unit.objects['5:50'] = 0;
+  unit.objects['19:42'] = 2;
+  const ctx = await setup(t, { config: ALLOW, unit });
+  const ack = await ctx.press('ventilation-mode', 'high');
+  assert.equal(ack.success, false);
+  assert.match(String(ack.error), /bouton confort/);
   assert.deepEqual(unit.writes(), []);
 });
 

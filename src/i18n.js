@@ -162,6 +162,10 @@ export const T = {
       `Another unit answers at this address (serial ${found}; this integration drives ${expected}). Nothing of it is shown and the commands are refused. If you replaced the unit, press "Accept the unit at this address" twice.`,
       `Une autre centrale répond à cette adresse (numéro de série ${found} ; cette intégration pilote ${expected}). Rien n’en est affiché et les commandes sont refusées. Si vous avez remplacé la centrale, appuyez deux fois sur « Accepter la centrale à cette adresse ».`,
     ),
+  serialUnknown: both(
+    'Serial number unreadable: check the BACnet device id; the commands are refused until it is read.',
+    'Numéro de série illisible : vérifiez le numéro d’appareil BACnet ; les commandes sont refusées tant qu’il n’est pas lu.',
+  ),
   acceptNothing: both(
     'Nothing to accept: the unit at this address is the one this integration drives.',
     'Rien à accepter : la centrale à cette adresse est celle que pilote cette intégration.',
@@ -209,6 +213,14 @@ export const ERRORS = {
     'Another unit answers at this address: command not sent (see the configuration of the integration).',
     'Une autre centrale répond à cette adresse : commande non envoyée (voir la configuration de l’intégration).',
   ),
+  identityNotLearnt: both(
+    'The serial number of the unit was never read (check the BACnet device id): command not sent.',
+    'Le numéro de série de la centrale n’a jamais pu être lu (vérifiez le numéro d’appareil BACnet) : commande non envoyée.',
+  ),
+  comfortOff: both(
+    'The comfort button is off: the unit stays Away whatever the ventilation mode. Turn the comfort button on first. Not sent.',
+    'Le bouton confort est désactivé : la centrale reste en Absence quel que soit le mode de ventilation. Activez d’abord le bouton confort. Non envoyée.',
+  ),
   identityUnknown: both(
     'The serial number of the unit could not be read just before: command not sent.',
     'Le numéro de série de la centrale n’a pas pu être relu juste avant : commande non envoyée.',
@@ -226,8 +238,8 @@ export const ERRORS = {
     'Une autre commande vers la centrale est encore en cours : non envoyée.',
   ),
   protectMeanwhile: both(
-    'A protective command (heater off, cooker hood off, fireplace stop) was sent meanwhile: not sent.',
-    'Une commande de protection (batterie coupée, hotte désactivée, arrêt cheminée) est partie entre-temps : non envoyée.',
+    'A priority command (heater off, cooker hood off, fireplace stop) was sent meanwhile: not sent.',
+    'Une commande prioritaire (batterie coupée, hotte désactivée, arrêt cheminée) est partie entre-temps : non envoyée.',
   ),
   tooSlow: both(
     'The unit answered too slowly to send the command in time: not sent.',

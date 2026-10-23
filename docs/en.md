@@ -38,9 +38,11 @@ and drive the unit, so keep it on a **trusted network**.
 ## Commands (off by default)
 
 With **Allow the commands** off, every command below is refused, except the
-protective ones. Turn it on to let Gladys:
+three "back to normal" ones further down. Turn it on to let Gladys:
 
-- set the **ventilation mode** (Away, Home, High; "Stop" is never offered);
+- set the **ventilation mode** (Away, Home, High; "Stop" is never offered;
+  only while the comfort button is on, else the unit stays Away and the
+  command is refused with that reason);
 - set the **air temperature setpoints** Home and Away (10 to 30 °C by 0.5);
 - start the **rapid ventilation** or the **fireplace mode** (for their
   duration set on the unit; the fireplace mode creates an overpressure that
@@ -50,15 +52,25 @@ protective ones. Turn it on to let Gladys:
   delay);
 - **reset the filter timer**.
 
-**Always allowed** (protective): turn the electric heater off, turn the
-cooker hood mode off, stop the fireplace mode. They are never held back by
-the option, another command or a failed read.
+**Always allowed**: turn the electric heater off, turn the cooker hood mode
+off, stop the fireplace mode. Turning the heater off removes a heat source;
+the two others bring the ventilation back to normal (they are not a safety
+action: stopping the fireplace or cooker hood mode while a stove burns or the
+hood runs removes the air compensation). They are never held back by the
+option, another command or a backoff, and are refused only when another unit
+is identified at the address. The heater and cooker hood off are always
+written, without a read before. The fireplace stop is a toggle: it is sent
+only when a read just before shows the mode on; if that read fails, it is
+refused, and the reads of the next two minutes send it as soon as they show
+the mode on.
 
-How a command goes:
+How the other commands go:
 
 - the state of the unit and its serial number are read just before; the
-  command is refused if they cannot be read, if the unit is **stopped**
-  (Gladys never restarts it), or if another unit answers at the address;
+  command is refused if they cannot be read, if no serial number was ever
+  read (check the BACnet device id), if the unit is **stopped** (Gladys never
+  restarts it: comfort button off is refused too, as it overrides Stop), or
+  if another unit answers at the address;
 - nothing is sent when the unit is already in the state asked;
 - the fireplace and rapid ventilation triggers act as **toggles**: a trigger
   is sent only when the state read shows it is needed, and never again while
@@ -67,18 +79,20 @@ How a command goes:
   is confirmed only when the unit reads back the value asked; otherwise
   Gladys says "sent, without confirmation" and reads the unit again after 5
   and 20 seconds;
-- a protective command not confirmed is sent again (twice at most) by the
-  reads of the next two minutes while the unit still shows it on.
+- an "always allowed" command not confirmed is sent again (twice at most) by
+  the reads of the next two minutes while the unit still shows it on.
 
 Selects and buttons only: no switch and no thermostat, so a "turn everything
 off" from a voice assistant or a scene never reaches the ventilation.
 
 ## Identity of the unit
 
-The serial number of the unit is kept at the first read. If another unit
-answers at the same address later (a replaced unit, or a DHCP swap), nothing
-of it is shown, the commands are refused (except the protective ones) and the
-status says so. If you replaced the unit, press **Accept the unit at this
+The serial number of the unit is kept at the first read (its BACnet Device
+object, asked by the standard wildcard instance and by the device id typed).
+Until it is read, the status says so and the commands are refused, except the
+three "always allowed" ones. If another unit answers at the same address
+later (a replaced unit, or a DHCP swap), nothing of it is shown, every command
+is refused (the "always allowed" ones included) and the status says so. If you replaced the unit, press **Accept the unit at this
 address** once (it shows the serial found), then again within 2 minutes: the
 same Gladys device and its history are kept.
 

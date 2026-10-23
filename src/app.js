@@ -35,8 +35,10 @@
 //     confirmation" and spaced reads; never retried; one at a time;
 //   - the ack never waits for a publication to Gladys.
 // Protective commands (heater off, cooker hood off, fireplace stop): never
-// held back by the option, another command, the identity or a failed read
-// (one try); possible before the first read after a restart; a command not
+// held back by the option, another command or a backoff (one try); refused
+// only toward another unit identified at the address; the fireplace stop (a
+// toggle) needs a fresh read showing the mode on, the two others are written
+// blind; possible before the first read after a restart; a command not
 // written yet gives way to them; reaffirmed (twice at most) by the reads of
 // the next two minutes when not confirmed, unless an "on" command of the same
 // target actually left after them.
@@ -64,7 +66,7 @@ import {
   readPropertyMultiple,
   writeProperty,
 } from './bacnet/protocol.js';
-import { deviceSpec, modelOf, plainValues, pointSpec } from './bacnet/values.js';
+import { deviceSpecs, modelOf, plainValues, pointSpec } from './bacnet/values.js';
 import { buildDevice, commandOf, deviceStates, parseFeatureId, unitIds } from './devices.js';
 import { ERRORS, T, age, join, word } from './i18n.js';
 import { StatePublisher } from './publisher.js';
@@ -333,15 +335,14 @@ export class FlexitApp {
   async readKeys(keys, { withDevice = false, timeoutMs = TIMINGS.requestTimeout } = {}) {
     const specs = keys.map(pointSpec);
     if (withDevice) {
-      specs.unshift(deviceSpec(this.config.deviceId));
+      specs.unshift(...deviceSpecs(this.config.deviceId));
     }
-    const deviceId = this.config.deviceId;
     const objects = await this.send({
       build: (invokeId) => readPropertyMultiple(invokeId, specs),
       parse: parseReadAnswer,
       timeoutMs,
     });
-    return plainValues(objects, keys, withDevice ? deviceId : undefined);
+    return plainValues(objects, keys, withDevice);
   }
 
   /** One WriteProperty of the present value of `object`. */
@@ -537,7 +538,8 @@ export class FlexitApp {
     if (u.mismatch) {
       return T.otherUnit(u.mismatch, this.memory.serial);
     }
-    return T.connected(T.summary(u.values ?? {}, u.model));
+    const connected = T.connected(T.summary(u.values ?? {}, u.model));
+    return this.memory.serial === null ? join(connected, T.serialUnknown) : connected;
   }
 
   get shown() {
@@ -854,7 +856,14 @@ export class FlexitApp {
       if (budget < TIMINGS.commandMinRead) {
         throw this.refusal(ERRORS.tooSlow);
       }
-      const keys = [...new Set(['operationMode', 'ventilationMode', ...reads])];
+      const keys = [
+        ...new Set([
+          'operationMode',
+          'ventilationMode',
+          ...(command.needsComfort ? ['comfort'] : []),
+          ...reads,
+        ]),
+      ];
       let fresh;
       try {
         fresh = await this.readKeys(keys, { withDevice: true, timeoutMs: budget });
@@ -865,13 +874,15 @@ export class FlexitApp {
         throw this.refusal(ERRORS.unknownState(errorReason(err)));
       }
       check();
-      if (this.memory.serial !== null) {
-        if (fresh.serial === undefined) {
-          throw this.refusal(ERRORS.identityUnknown);
-        }
-        if (fresh.serial !== this.memory.serial) {
-          throw this.refusal(ERRORS.otherUnit);
-        }
+      // Never a command to a unit whose identity is not known and checked.
+      if (this.memory.serial === null) {
+        throw this.refusal(ERRORS.identityNotLearnt);
+      }
+      if (fresh.serial === undefined) {
+        throw this.refusal(ERRORS.identityUnknown);
+      }
+      if (fresh.serial !== this.memory.serial) {
+        throw this.refusal(ERRORS.otherUnit);
       }
       // A fresh read of a command never reaffirms a protective command.
       this.noteValues(fresh, { fromCommand: true });
@@ -881,6 +892,14 @@ export class FlexitApp {
         }
         if (fresh.operationMode === 'off' || fresh.ventilationMode === 'stop') {
           throw this.refusal(ERRORS.unitOff);
+        }
+      }
+      if (command.needsComfort) {
+        if (fresh.comfort === undefined) {
+          throw this.refusal(ERRORS.unknownState(word(ERRORS.unreadable, this.config.language)));
+        }
+        if (fresh.comfort === false) {
+          throw this.refusal(ERRORS.comfortOff);
         }
       }
       const from = this.stateOf(command, fresh);
@@ -989,6 +1008,11 @@ export class FlexitApp {
     const target = plan.command.target;
     if (this.protecting.has(target)) {
       return this.protecting.get(target);
+    }
+    // Another unit identified at the address: never driven, not even a protective command
+    // (before the first read, or with a serial unreadable, it goes).
+    if (this.unit.mismatch) {
+      throw this.refusal(ERRORS.otherUnit);
     }
     // A command not written yet gives way (checked right before its write).
     this.protectSeq += 1;

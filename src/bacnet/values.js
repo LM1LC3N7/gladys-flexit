@@ -12,6 +12,7 @@ import {
   POINTS,
   PROPERTIES,
   VENTILATION_MODES,
+  WILDCARD_DEVICE_ID,
 } from '../constants.js';
 import { objectKey } from './protocol.js';
 
@@ -45,6 +46,12 @@ export const deviceSpec = (deviceId) => ({
   properties: [PROPERTIES.OBJECT_NAME, PROPERTIES.DESCRIPTION],
 });
 
+/** The Device objects asked with a poll or a command: the wildcard instance, and the configured one. */
+export const deviceSpecs = (deviceId) =>
+  deviceId === WILDCARD_DEVICE_ID
+    ? [deviceSpec(deviceId)]
+    : [deviceSpec(WILDCARD_DEVICE_ID), deviceSpec(deviceId)];
+
 export const pointSpec = (key) => ({ type: POINTS[key].type, instance: POINTS[key].instance });
 
 /**
@@ -52,7 +59,7 @@ export const pointSpec = (key) => ({ type: POINTS[key].type, instance: POINTS[ke
  * or not plausible is left out), with the identity when the Device object was
  * read: `serial` (string, else undefined), `name`.
  */
-export function plainValues(objects, keys, deviceId) {
+export function plainValues(objects, keys, withDevice = false) {
   const values = {};
   for (const key of keys) {
     const raw = objects.get(objectKey(POINTS[key]))?.get(PROPERTIES.PRESENT_VALUE);
@@ -66,15 +73,23 @@ export function plainValues(objects, keys, deviceId) {
     values.extract = values.extractAlt;
   }
   delete values.extractAlt;
-  if (deviceId !== undefined) {
-    const device = objects.get(objectKey(deviceSpec(deviceId)));
-    const serial = device?.get(PROPERTIES.DESCRIPTION);
-    const name = device?.get(PROPERTIES.OBJECT_NAME);
-    if (typeof serial === 'string' && /^[\w.-]{1,40}$/.test(serial.trim())) {
-      values.serial = serial.trim();
+  if (withDevice) {
+    // The Device object, asked by the wildcard instance and by the configured one: whatever
+    // instance it answers with. Two different serials in one answer: unknown.
+    const serials = new Set();
+    for (const [key, device] of objects) {
+      if (!key.startsWith(`${OBJECT_TYPES.DEVICE}:`)) continue;
+      const serial = device.get(PROPERTIES.DESCRIPTION);
+      const name = device.get(PROPERTIES.OBJECT_NAME);
+      if (typeof serial === 'string' && /^[\w.-]{1,40}$/.test(serial.trim())) {
+        serials.add(serial.trim());
+      }
+      if (typeof name === 'string' && values.name === undefined) {
+        values.name = name;
+      }
     }
-    if (typeof name === 'string') {
-      values.name = name;
+    if (serials.size === 1) {
+      [values.serial] = serials;
     }
   }
   return values;

@@ -15,7 +15,7 @@ Ported in `src/constants.js`, `src/bacnet/protocol.js`, `src/bacnet/values.js`
 and `src/bacnet/client.js`: BACnet/IP on UDP port 47808 without
 authentication; the ReadPropertyMultiple and WriteProperty requests as it
 encodes them (BVLC original-unicast, NPDU expecting a reply, confirmed request
-accepting a segmented answer of up to 4 segments of 1024 bytes, a REAL for an
+with a 1024-byte APDU, a REAL for an
 analog value, an ENUMERATED for a binary value, an UNSIGNED otherwise, write
 priority 13 for the comfort button, the ventilation mode and the cooker hood);
 the decoding of the answer (object identifier, list of results, property
@@ -37,7 +37,10 @@ roundings of the values. From Home Assistant's integration (Apache-2.0,
 information only, nothing copied): the default device id 2, the setpoint range
 10 to 30 °C by 0.5, and the note that the fireplace trigger acts as a toggle.
 
-Changed: each request has its own invoke id, which the answer must carry, and
+Changed: a segmented answer is not announced as accepted (flexit_bacnet
+announces up to 4 segments); the Device object is also read by the wildcard
+instance 4194303; the UNSIGNED of a write takes 1 to 4 bytes (flexit_bacnet
+packs one byte); each request has its own invoke id, which the answer must carry, and
 only a datagram from the address and port of the unit is looked at; every
 length of an answer is checked against the datagram (one linear pass, a
 datagram over 1497 bytes dropped unread, a segmented answer refused, an

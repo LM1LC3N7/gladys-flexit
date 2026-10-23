@@ -42,11 +42,12 @@ donc sur un **réseau de confiance**.
 ## Commandes (désactivées par défaut)
 
 Avec **Autoriser les commandes** désactivé, toutes les commandes ci-dessous
-sont refusées, sauf celles de protection. Activez-le pour permettre à Gladys
-de :
+sont refusées, sauf les trois commandes de « retour à la normale » décrites
+plus bas. Activez-le pour permettre à Gladys de :
 
 - choisir le **mode de ventilation** (Absence, Maison, Fort ; « Arrêt »
-  n’est jamais proposé) ;
+  n’est jamais proposé ; seulement quand le bouton confort est activé, sinon
+  la centrale reste en Absence et la commande est refusée avec ce motif) ;
 - régler les **consignes de température d’air** Maison et Absence (de 10 à
   30 °C par pas de 0,5) ;
 - démarrer la **ventilation rapide** ou le **mode cheminée** (pour la durée
@@ -57,16 +58,27 @@ de :
   en Absence après son délai) ;
 - **remettre à zéro le compteur du filtre**.
 
-**Toujours permises** (protection) : couper la batterie électrique,
-désactiver le mode hotte, arrêter le mode cheminée. Elles ne sont jamais
-bloquées par l’option, une autre commande ou une lecture ratée.
+**Toujours permises** : couper la batterie électrique, désactiver le mode
+hotte, arrêter le mode cheminée. Couper la batterie supprime une source de
+chaleur ; les deux autres remettent la ventilation normale (ce n’est pas une
+action de sécurité : arrêter le mode cheminée ou hotte pendant qu’un poêle
+brûle ou que la hotte tourne supprime la compensation d’air). Elles ne sont
+jamais bloquées par l’option, une autre commande ou une pause, et ne sont
+refusées que si une autre centrale est identifiée à l’adresse. Couper la
+batterie et désactiver la hotte sont toujours écrits, sans relecture avant.
+L’arrêt du mode cheminée est une bascule : il n’est envoyé que si une
+relecture juste avant montre le mode actif ; si cette relecture échoue, il
+est refusé, et les lectures des deux minutes suivantes l’envoient dès
+qu’elles montrent le mode actif.
 
-Déroulement d’une commande :
+Déroulement des autres commandes :
 
 - l’état de la centrale et son numéro de série sont relus juste avant ; la
-  commande est refusée s’ils ne peuvent pas être lus, si la centrale est
-  **arrêtée** (Gladys ne la relance jamais) ou si une autre centrale répond à
-  l’adresse ;
+  commande est refusée s’ils ne peuvent pas être lus, si aucun numéro de série
+  n’a jamais pu être lu (vérifiez le numéro d’appareil BACnet), si la
+  centrale est **arrêtée** (Gladys ne la relance jamais : désactiver le
+  bouton confort est aussi refusé, car il outrepasse l’arrêt) ou si une autre
+  centrale répond à l’adresse ;
 - rien n’est envoyé quand la centrale est déjà dans l’état demandé ;
 - les déclenchements du mode cheminée et de la ventilation rapide sont des
   **bascules** : un déclenchement n’est envoyé que si l’état relu montre
@@ -75,9 +87,9 @@ Déroulement d’une commande :
   refusée sans être envoyée ; elle n’est confirmée que si la centrale relit la
   valeur demandée ; sinon Gladys indique « envoyée, sans confirmation » et
   relit la centrale 5 et 20 secondes après ;
-- une commande de protection non confirmée est renvoyée (deux fois au plus)
-  par les lectures des deux minutes suivantes tant que la centrale la montre
-  encore active.
+- une commande « toujours permise » non confirmée est renvoyée (deux fois au
+  plus) par les lectures des deux minutes suivantes tant que la centrale la
+  montre encore active.
 
 Des listes et des boutons seulement : ni interrupteur ni thermostat, donc un
 « éteins tout » d’un assistant vocal ou d’une scène n’atteint jamais la
@@ -85,10 +97,13 @@ ventilation.
 
 ## Identité de la centrale
 
-Le numéro de série de la centrale est retenu à la première lecture. Si une
-autre centrale répond plus tard à la même adresse (centrale remplacée, ou
-échange d’adresses DHCP), rien n’en est affiché, les commandes sont refusées
-(sauf celles de protection) et le statut l’indique. Si vous avez remplacé la
+Le numéro de série de la centrale est retenu à la première lecture (objet
+Device BACnet, demandé par l’instance joker standard et par le numéro
+d’appareil saisi). Tant qu’il n’est pas lu, le statut l’indique et les
+commandes sont refusées, sauf les trois « toujours permises ». Si une autre
+centrale répond plus tard à la même adresse (centrale remplacée, ou échange
+d’adresses DHCP), rien n’en est affiché, toutes les commandes sont refusées
+(« toujours permises » comprises) et le statut l’indique. Si vous avez remplacé la
 centrale, appuyez une fois sur **Accepter la centrale à cette adresse** (le
 numéro de série trouvé s’affiche), puis une seconde fois dans les 2 minutes :
 le même appareil Gladys et son historique sont conservés.

@@ -129,7 +129,9 @@ export function request({
         if (err instanceof BacnetError && err.refused) {
           fail(ERROR_KINDS.REFUSED, 'refused by the unit', err.detail);
         } else {
-          fail(ERROR_KINDS.PROTOCOL, err instanceof BacnetError ? err.message : 'bad answer');
+          // The reason (e.g. "segmented answer") goes to the status and the logs.
+          const reason = err instanceof BacnetError ? err.message : 'bad answer';
+          fail(ERROR_KINDS.PROTOCOL, reason, reason);
         }
       }
     });

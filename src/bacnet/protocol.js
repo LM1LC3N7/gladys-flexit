@@ -5,10 +5,10 @@
 // datagram (an answer is hostile: never trusted, never logged).
 //
 // Frame: BVLC (0x81, 0x0A original-unicast, length) + NPDU (version 1,
-// "expecting reply") + APDU (confirmed request: segmented answer accepted, at
-// most 4 segments of 1024 bytes, invoke id, service). The reads of a poll are
-// split so that an answer never needs segmenting; a segmented answer is
-// refused. Unlike flexit_bacnet (a fixed invoke id 1), each request has its own
+// "expecting reply") + APDU (confirmed request: segmented answer NOT accepted,
+// unlike flexit_bacnet; 1024-byte APDU, invoke id, service). The reads of a
+// poll are split so that an answer never needs segmenting; a segmented answer
+// is refused anyway. Unlike flexit_bacnet (a fixed invoke id 1), each request has its own
 // invoke id and the answer must carry it.
 // -----------------------------------------------------------------------------
 
@@ -21,8 +21,12 @@ const NPDU = [0x01, 0x04];
 const PDU = { CONFIRMED: 0, SIMPLE_ACK: 2, COMPLEX_ACK: 3, ERROR: 5, REJECT: 6, ABORT: 7 };
 export const SERVICES = { READ_PROPERTY_MULTIPLE: 14, WRITE_PROPERTY: 15 };
 
-/** Segmented answer accepted (as flexit_bacnet), 4 segments, 1024-byte APDU. */
-const CONFIRMED_HEADER = [(PDU.CONFIRMED << 4) | 0x02, (4 << 4) | 4];
+/**
+ * Segmented answer NOT accepted (flexit_bacnet announces it, but an answer
+ * here always fits in one frame and a segment is refused: a unit that would
+ * need to segment answers with an explicit Abort), 1024-byte APDU.
+ */
+const CONFIRMED_HEADER = [PDU.CONFIRMED << 4, 4];
 
 export class BacnetError extends Error {
   /**
@@ -78,11 +82,17 @@ export function writeProperty(invokeId, { type, instance, priority }, value) {
     encoded[0] = 0x44; // application tag 4 (REAL), length 4
     encoded.writeFloatBE(value, 1);
   } else if (type === OBJECT_TYPES.BINARY_VALUE) {
-    encoded = Buffer.from([0x91, value & 0xff]); // ENUMERATED, length 1
-  } else if (value <= 0xff) {
-    encoded = Buffer.from([0x21, value]); // UNSIGNED, length 1
+    if (value !== 0 && value !== 1) throw new RangeError('a binary value is 0 or 1');
+    encoded = Buffer.from([0x91, value]); // ENUMERATED, length 1
   } else {
-    encoded = Buffer.from([0x22, value >> 8, value & 0xff]);
+    if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
+      throw new RangeError('an unsigned value is an integer from 0 to 4294967295');
+    }
+    // UNSIGNED in as few bytes as it needs (1 to 4).
+    const length = value <= 0xff ? 1 : value <= 0xffff ? 2 : value <= 0xffffff ? 3 : 4;
+    encoded = Buffer.alloc(1 + length);
+    encoded[0] = 0x20 | length;
+    encoded.writeUIntBE(value, 1, length);
   }
   const parts = [
     Buffer.from([...CONFIRMED_HEADER, invokeId & 0xff, SERVICES.WRITE_PROPERTY]),
