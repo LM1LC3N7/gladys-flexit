@@ -1,67 +1,106 @@
-# Template de démonstration
+# Flexit Nordic
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Affiche une ventilation double flux **Flexit Nordic** (S2, S3, S4, CL2, CL3,
+CL4, KS3) dans Gladys par **BACnet/IP** (port UDP 47808) sur votre réseau
+local, sans cloud. Intégration non officielle, **sans lien avec Flexit**.
+**Jamais testé avec un vrai appareil** : elle suit les objets de la
+bibliothèque libre flexit_bacnet (celle de Home Assistant) et la liste BACnet
+publiée par Flexit ; merci de signaler ce que votre centrale affiche.
 
 ## Ce que vous obtenez
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Un appareil Gladys, « Ventilation Flexit Nordic », avec :
 
-## Configuration
+- températures : air extérieur, soufflé, extrait, rejeté, pièce (panneau
+  CI70), et les deux consignes de température d’air (Maison, Absence) ;
+- humidité : air extrait (certains modèles), pièces 1 à 3 (sondes CI77 ; une
+  sonde qui lit 0 % est considérée absente) ;
+- ventilateurs de soufflage et d’extraction (signal en %, vitesse en tr/min),
+  vitesse et rendement de l’échangeur, état et puissance (kW) de la batterie
+  électrique ;
+- mode de fonctionnement (`off`, `away`, `home`, `high`, `cooker-hood`,
+  `fireplace`, `temporary-high`), bouton confort, modes hotte et cheminée,
+  temps restant et durée du mode cheminée et de la ventilation rapide ;
+- filtre : durée d’utilisation, intervalle de changement, « filtre à
+  remplacer ».
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+## Mise en place
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+1. Vérifiez que BACnet est activé sur la centrale et donnez-lui une **adresse
+   IP fixe** dans votre routeur (réservation DHCP).
+2. Dans Gladys, ouvrez l’intégration, saisissez l’**adresse IP** de la
+   centrale et le **numéro d’appareil BACnet** (2 sauf modification),
+   enregistrez.
+3. Ajoutez la centrale depuis l’onglet **Découverte**.
 
-## Actions
+La centrale est lue toutes les 60 secondes par défaut (de 30 s à 1 h), jamais
+plus souvent : ni quand vous appuyez sur « Tester la connexion », ni après un
+redémarrage de Gladys ou de l’intégration. BACnet n’a **pas de mot de passe** :
+toute personne sur votre réseau peut lire et piloter la centrale, gardez-la
+donc sur un **réseau de confiance**.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+## Commandes (désactivées par défaut)
 
-## Scènes
+Avec **Autoriser les commandes** désactivé, toutes les commandes ci-dessous
+sont refusées, sauf celles de protection. Activez-le pour permettre à Gladys
+de :
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+- choisir le **mode de ventilation** (Absence, Maison, Fort ; « Arrêt »
+  n’est jamais proposé) ;
+- régler les **consignes de température d’air** Maison et Absence (de 10 à
+  30 °C par pas de 0,5) ;
+- démarrer la **ventilation rapide** ou le **mode cheminée** (pour la durée
+  réglée sur la centrale ; le mode cheminée crée une surpression qui aide le
+  tirage d’un poêle à bois) ;
+- activer le **mode hotte** ou la **batterie électrique** ;
+- activer ou désactiver le **bouton confort** (désactivé : la centrale passe
+  en Absence après son délai) ;
+- **remettre à zéro le compteur du filtre**.
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+**Toujours permises** (protection) : couper la batterie électrique,
+désactiver le mode hotte, arrêter le mode cheminée. Elles ne sont jamais
+bloquées par l’option, une autre commande ou une lecture ratée.
 
-## Tableau de bord
+Déroulement d’une commande :
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+- l’état de la centrale et son numéro de série sont relus juste avant ; la
+  commande est refusée s’ils ne peuvent pas être lus, si la centrale est
+  **arrêtée** (Gladys ne la relance jamais) ou si une autre centrale répond à
+  l’adresse ;
+- rien n’est envoyé quand la centrale est déjà dans l’état demandé ;
+- les déclenchements du mode cheminée et de la ventilation rapide sont des
+  **bascules** : un déclenchement n’est envoyé que si l’état relu montre
+  qu’il le faut, et jamais tant qu’un précédent n’est pas encore visible ;
+- la commande part dans les 3,5 secondes après le clic, sinon elle est
+  refusée sans être envoyée ; elle n’est confirmée que si la centrale relit la
+  valeur demandée ; sinon Gladys indique « envoyée, sans confirmation » et
+  relit la centrale 5 et 20 secondes après ;
+- une commande de protection non confirmée est renvoyée (deux fois au plus)
+  par les lectures des deux minutes suivantes tant que la centrale la montre
+  encore active.
 
-## Dépannage
+Des listes et des boutons seulement : ni interrupteur ni thermostat, donc un
+« éteins tout » d’un assistant vocal ou d’une scène n’atteint jamais la
+ventilation.
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+## Identité de la centrale
+
+Le numéro de série de la centrale est retenu à la première lecture. Si une
+autre centrale répond plus tard à la même adresse (centrale remplacée, ou
+échange d’adresses DHCP), rien n’en est affiché, les commandes sont refusées
+(sauf celles de protection) et le statut l’indique. Si vous avez remplacé la
+centrale, appuyez une fois sur **Accepter la centrale à cette adresse** (le
+numéro de série trouvé s’affiche), puis une seconde fois dans les 2 minutes :
+le même appareil Gladys et son historique sont conservés.
+
+## Limites
+
+- Pas de découverte automatique : l’application Flexit trouve les centrales
+  par une diffusion propriétaire ; l’intégration ne l’imite pas, l’adresse est
+  saisie.
+- Les débits par mode, les durées du mode cheminée et de la ventilation
+  rapide et la puissance nominale de la batterie ne se changent pas depuis
+  Gladys (v1).
+- L’arrêt de la ventilation n’est pas proposé.
+- L’intégration ne garde dans `/data` que l’heure de sa dernière lecture et le
+  numéro de série de la centrale.

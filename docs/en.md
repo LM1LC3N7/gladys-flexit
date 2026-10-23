@@ -1,61 +1,93 @@
-# Demo Devices Template
+# Flexit Nordic
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Shows a **Flexit Nordic** heat recovery ventilation unit (S2, S3, S4, CL2,
+CL3, CL4, KS3) in Gladys over **BACnet/IP** (UDP port 47808) on your local
+network, without any cloud. Unofficial integration, **not affiliated with
+Flexit**. **Never tested with a real device**: it follows the objects of the
+open-source library flexit_bacnet (the one of Home Assistant) and Flexit's
+published BACnet list; please report what your unit shows.
 
 ## What you get
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+One Gladys device, "Flexit Nordic ventilation", with:
 
-## Configuration
+- temperatures: outdoor, supply, extract, exhaust, room (CI70 panel), and the
+  two air temperature setpoints (Home, Away);
+- humidity: extract air (some models), rooms 1 to 3 (CI77 sensors; a sensor
+  that reads 0 % is taken as absent);
+- supply and exhaust fans (signal in %, speed in rpm), heat exchanger speed
+  and efficiency, electric heater state and power (kW);
+- operation mode (`off`, `away`, `home`, `high`, `cooker-hood`, `fireplace`,
+  `temporary-high`), comfort button, cooker hood and fireplace modes, time
+  remaining and duration of the fireplace mode and of the rapid ventilation;
+- filter: operating time, exchange interval, "filter to replace".
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+## Setting up
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+1. Make sure BACnet is enabled on the unit and give it a **fixed IP address**
+   in your router (DHCP reservation).
+2. In Gladys, open the integration, enter the **IP address** of the unit and
+   the **BACnet device id** (2 unless it was changed), save.
+3. Add the unit from the **Discovery** tab.
 
-## Actions
+The unit is read every 60 seconds by default (30 s to 1 h), never sooner:
+not when you press "Test the connection", not after a restart of Gladys or of
+the integration. BACnet has **no password**: anyone on your network can read
+and drive the unit, so keep it on a **trusted network**.
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+## Commands (off by default)
 
-## Scenes
+With **Allow the commands** off, every command below is refused, except the
+protective ones. Turn it on to let Gladys:
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+- set the **ventilation mode** (Away, Home, High; "Stop" is never offered);
+- set the **air temperature setpoints** Home and Away (10 to 30 °C by 0.5);
+- start the **rapid ventilation** or the **fireplace mode** (for their
+  duration set on the unit; the fireplace mode creates an overpressure that
+  helps a wood stove draw);
+- turn the **cooker hood mode** or the **electric heater** on;
+- turn the **comfort button** on or off (off: the unit goes to Away after its
+  delay);
+- **reset the filter timer**.
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+**Always allowed** (protective): turn the electric heater off, turn the
+cooker hood mode off, stop the fireplace mode. They are never held back by
+the option, another command or a failed read.
 
-## Dashboard
+How a command goes:
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+- the state of the unit and its serial number are read just before; the
+  command is refused if they cannot be read, if the unit is **stopped**
+  (Gladys never restarts it), or if another unit answers at the address;
+- nothing is sent when the unit is already in the state asked;
+- the fireplace and rapid ventilation triggers act as **toggles**: a trigger
+  is sent only when the state read shows it is needed, and never again while
+  a previous one is not visible yet;
+- the command is sent within 3.5 seconds of the click, or refused unsent; it
+  is confirmed only when the unit reads back the value asked; otherwise
+  Gladys says "sent, without confirmation" and reads the unit again after 5
+  and 20 seconds;
+- a protective command not confirmed is sent again (twice at most) by the
+  reads of the next two minutes while the unit still shows it on.
 
-## Troubleshooting
+Selects and buttons only: no switch and no thermostat, so a "turn everything
+off" from a voice assistant or a scene never reaches the ventilation.
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+## Identity of the unit
+
+The serial number of the unit is kept at the first read. If another unit
+answers at the same address later (a replaced unit, or a DHCP swap), nothing
+of it is shown, the commands are refused (except the protective ones) and the
+status says so. If you replaced the unit, press **Accept the unit at this
+address** once (it shows the serial found), then again within 2 minutes: the
+same Gladys device and its history are kept.
+
+## Limits
+
+- No automatic discovery: Flexit's app finds units with a proprietary
+  broadcast; the integration does not imitate it, the address is typed.
+- Fan setpoints per mode, durations of the fireplace and rapid ventilation
+  modes, and the heater nominal power are not changed from Gladys (v1).
+- Stopping the ventilation is not offered.
+- The integration keeps in `/data` only the time of its last read and the
+  serial number of the unit.
