@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
 ### Added
 
 - Flexit Nordic units (S2, S3, S4, CL2, CL3, CL4, KS3) over local BACnet/IP
@@ -29,4 +31,5 @@ the notes of the version's GitHub Release.
   electric heater off, cooker hood off, fireplace mode stop.
 - Guides in English and French, cover image.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-flexit/commits/main
+[Unreleased]: https://github.com/LM1LC3N7/gladys-flexit/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-flexit/releases/tag/v0.1.1

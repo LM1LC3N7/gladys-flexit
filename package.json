@@ -1,6 +1,6 @@
 {
   "name": "gladys-flexit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for Flexit Nordic heat recovery ventilation units (S2, S3, S4, CL2, CL3, CL4, KS3) over local BACnet/IP: temperatures, humidity, fans, heat exchanger, filter, modes; optional commands. Unofficial, not affiliated with Flexit.",
   "type": "module",
