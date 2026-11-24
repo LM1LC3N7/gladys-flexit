@@ -168,3 +168,7 @@ up to date at the end of every milestone.
 - **Interval**: 60 s by default, 30 s – 1 h.
 - **Not done**: Bluetooth (none), scenes, widgets, fan setpoints per mode,
   durations, heater nominal power, ventilation stop.
+
+## Next patch
+
+- Migration review minors: see `_lots/migration-reviews/w15-gladys-flexit-r1.md`.
