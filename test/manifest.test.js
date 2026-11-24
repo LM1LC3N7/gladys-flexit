@@ -7,7 +7,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import { DEFAULT_CONFIG } from '../src/config.js';
+import { ROLES, buildDevice } from '../src/devices.js';
+import { assertCoreDevice } from './helpers/coreFeature.js';
 import { ACTIONS, MAX_DEVICE_ID, POLL_INTERVAL } from '../src/constants.js';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -112,4 +115,15 @@ test('the actions are the ones the code handles', () => {
   for (const name of Object.keys(ACTIONS)) {
     assert.ok(handlers.includes(`onAction(ACTIONS.${name}`), `ACTIONS.${name} has no handler`);
   }
+});
+
+test('every feature has a numeric min and max and the other core fields, in both languages', () => {
+  const gladys = createFakeGladys({ selector: 'flexit' });
+  let features = 0;
+  for (const language of ['en', 'fr']) {
+    const device = buildDevice(gladys, { language });
+    features += assertCoreDevice(device, language);
+    assert.equal(device.should_poll, false);
+  }
+  assert.equal(features, 2 * ROLES.length);
 });

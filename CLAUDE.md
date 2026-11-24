@@ -8,7 +8,7 @@ already taken and the next milestones.
 
 A Gladys Assistant **external integration** of type `device`: a Node.js
 service (Node 22+, ESM, no build step) in its own sandboxed Docker container,
-talking to Gladys through `@gladysassistant/integration-sdk` (v0.15), its only
+talking to Gladys through `@gladysassistant/integration-sdk` (v0.16), its only
 runtime dependency (UDP goes through `node:dgram`). It reads a Flexit Nordic
 ventilation unit over BACnet/IP (UDP 47808, no cloud, no authentication) and
 shows it as one Gladys device; commands behind an off-by-default option,
@@ -19,7 +19,7 @@ with a real device, not affiliated with Flexit.
 
 ```bash
 npm install
-npm test                                  # node --test, the built-in runner
+npm test                                  # node --test --test-timeout=60000
 node --test test/app.test.js              # one file
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
@@ -56,6 +56,12 @@ scripts/cover.mjs         cover.png generator
 
 ## Rules
 
+- **Features follow the core model.** Every feature has a non-empty `name`, a
+  numeric `min` and `max` (0/0 for text and buttons), boolean `read_only` and
+  `has_feedback`: Gladys refuses it otherwise, and the SDK's fake Gladys
+  (0.16.1) too; `test/helpers/coreFeature.js` checks the device in both
+  languages. The device carries `should_poll: false` (Gladys 5.3 polls a device
+  with `poll_frequency` unless it says so).
 - **External ids are forever**: device `flexit:unit` (frozen rule: never the
   IP address nor the serial), feature roles in `FEATURES` of
   `src/constants.js`. Every role is always built: a republished device never
