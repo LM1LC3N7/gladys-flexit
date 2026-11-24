@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-24
+
 ### Changed
 
 - Integration SDK 0.16.1 (no change for the devices); the test runner stops a
@@ -36,5 +38,6 @@ the notes of the version's GitHub Release.
   electric heater off, cooker hood off, fireplace mode stop.
 - Guides in English and French, cover image.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-flexit/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-flexit/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LM1LC3N7/gladys-flexit/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-flexit/releases/tag/v0.1.1
